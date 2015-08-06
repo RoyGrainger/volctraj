@@ -18,31 +18,17 @@ h = intarr(2)
 data = dblarr(2,13, 125) ;;2 = number of heights, always 2 as want to interpolate between 2 levels
                          ;;13 columns outputted by HYSPLIT
                          ;;125 rows outputted by HYSPLIT for 1 day, tracks every 6 hours
+						 
+						 
+  Q =max(where(Traj_Alt_Grid Lt start_position.alt)) < (N_elements(Traj_Alt_Grid) - 2)
+  filename1 = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+string(Traj_Alt_Grid(q),Format='(I5.5)')+'m.txt'					 
+  filename2 = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+string(Traj_Alt_Grid(q+1),Format='(I5.5)')+'m.txt'					 
+  load_traj, filename1, data_read1			 
+  load_traj, filename2, data_read2		
+  data[0,*,*] = data_read1  
+  data[1,*,*] = data_read2 
+  heights = [Traj_Alt_Grid(q),Traj_Alt_Grid(q+1)]
 
-FOR a = 0, n_elements(traj_alt_grid)-2 DO BEGIN
-
-   h[0] = traj_alt_grid[a]
-   h[1] = traj_alt_grid[a+1]
-
-   IF st_height GE h[0] AND st_height LT h[1] THEN BEGIN
-
-      FOR n = 0,1 DO BEGIN
-         ;; NOTE filename height extension is 5 characters, so must include 0 if 9999m or less
-         IF h[n] LT 10000 THEN filename = volcano+'/'+volcano+'_'+start_DATTIM.date+'_0'+strtrim(h[n],1)+'m.txt'$
-         ELSE filename = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+strtrim(h[n],1)+'m.txt'
-
-         load_traj, filename, data_read
-
-         data[n,*,*] = data_read
-         
-      ENDFOR
-      
-      ;;Outputting the values of traj_alt_grid that the required starting height falls between
-      heights = [h[0],h[1]]
-      
-   ENDIF
-
-ENDFOR
 
 ;Print message if the requested start height is smaller than the lowest measured height, or higher than the highest
 IF st_height GT traj_alt_grid[n_elements(traj_alt_grid)-1] OR st_height LT traj_alt_grid[0] THEN print,'Requested initial height is outside the calculable range'
