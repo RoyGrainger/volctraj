@@ -1,5 +1,6 @@
 ;;function to read trajectory data on a given day, interpolate to a required height and return location a specified time later
-;; 5th August 2015 CJB start - extracts end position if the end time is the same day, and 0000, 0600, 1200 or 1800
+;; 5th August 2015 CJB start - extracts end position if the end time is the same day, and has an end time with 0 minutes past the hour
+;; 6th August 2015 CJB - extended to include end times with non zero minutes, and next day end times
 
 ;;Inputs: volcano = volcano code, string
 ;;        traj_alt_grid = altitude grid of data set
@@ -26,37 +27,14 @@ FOR a = 0, n_elements(traj_alt_grid)-2 DO BEGIN
    IF st_height GE h[0] AND st_height LT h[1] THEN BEGIN
 
       FOR n = 0,1 DO BEGIN
-
          ;; NOTE filename height extension is 5 characters, so must include 0 if 9999m or less
-         IF h[n] LT 10000 THEN openr, lun, '/home/jupiter/eodg2/birch/Trajectories/Fine/'+volcano+'/'+volcano+'_'+start_DATTIM.date+'_0'+strtrim(h[n],1)+'m.txt', /get_lun $
-         ELSE openr, lun, '/home/jupiter/eodg2/birch/Trajectories/Fine/'+volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+strtrim(h[n],1)+'m.txt', /get_lun
+         IF h[n] LT 10000 THEN filename = volcano+'_'+start_DATTIM.date+'_0'+strtrim(h[n],1)+'m.txt'
+         ELSE filename = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+strtrim(h[n],1)+'m.txt'
 
-         line = ''
-         l=0
+         load_traj, filename, data_read
 
-         WHILE NOT EOF(lun) DO BEGIN
-
-            ;;Read one line at a time
-            readf, lun, line
-
-            ;;Index line, +1 as want to start reading data the line after this
-            l = l+1       
-
-            ;;Does the current line match the last one we don't want?
-            IF STRCMP(line,'     1 PRESSURE',15) EQ 1 THEN BEGIN
-
-               ;;If yes, read the rest of the file to variable "result". NOTE filename height extension is 5 characters, so must include 0 if 9999m or less
-               IF h[n] LT 10000 THEN result = READ_ASCII('/home/jupiter/eodg2/birch/Trajectories/Fine/'+volcano+'/'+volcano+'_'+start_DATTIM.date+'_0'+strtrim(h[n],1)+'m.txt', DATA_START = l) $
-               ELSE result = READ_ASCII('/home/jupiter/eodg2/birch/Trajectories/Fine/'+volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+strtrim(h[n],1)+'m.txt', DATA_START = l)
-
-            ENDIF
-
-         ENDWHILE
-
-         ;;Will be a structure of one field, so reasign to an array
-         data[n,*,*] = result.field01
-         free_lun, lun
-
+         data[n,*,*] = data_read
+         
       ENDFOR
       
       ;;Outputting the values of traj_alt_grid that the required starting height falls between
@@ -123,47 +101,50 @@ en_date = end_DATTIM.date
 en_time = end_DATTIM.time
     e_hour = FIX(STRMID(en_time,0,2))
     e_min = FIX(STRMID(en_time,2,4))
-    
-;;if hour is 00, 06, 12, or 18, and min is 0, can simply read off the answer, otherwise more interpolating is needed
-;;Also, if st_date = en_date, again it's simple to read off, but if it's a different day then can't just add on the difference in hours
-
-IF e_hour EQ 0 OR e_hour EQ 6 OR e_hour EQ 12 OR e_hour EQ 18 THEN BEGIN
-
-   IF STRCMP(st_date,en_date,6) EQ 1 THEN BEGIN
-      
-      IF s_min EQ 0 THEN BEGIN
          
-         start = where(year[*,0] EQ s_year AND month[*,0] EQ s_month AND day[*,0] EQ s_day AND hour[*,0] EQ s_hour)
+
+start = where(year[*,0] EQ s_year AND month[*,0] EQ s_month AND day[*,0] EQ s_day AND hour[*,0] EQ s_hour)
          
-         ;;When there is more than one track registering at a particular time, want the youngest one which is always the last one
-         start = max(start) 
+;;When there is more than one track registering at a particular time, want the youngest one which is always the last one
+start = max(start) 
          
-         ;;The track that starts at this time will be one index larger than this value
-         traj = track[start] + 1
+;;The track that starts at this time will be one index larger than this value
+traj = track[start] + 1
+        
+traj_data = where(track EQ traj)
+      
+;;extract track number 'traj' from the data set int_lat, int_lon and int_alt, and from the time arrays, remembering that here end_date = start_date and min = 0
+req_lat = int_lat[traj_data]
+req_lon = int_lon[traj_data]
+req_alt = int_alt[traj_data]
+req_hour = hour[traj_data]
+
+;;If the end time is a whole number of hours later
+IF s_min EQ 0 THEN BEGIN      
+
+   ;;Now find where req_hour EQ the end time
+   f = where(req_hour EQ e_hour)
+   end_lat = req_lat[f]
+   end_lon = req_lon[f]
+   end_alt = req_alt[f]
+
+   ;;return the end position
+   end_position = {lat: end_lat, lon: end_lon, alt: end_alt}
+      
+ENDIF ELSE BEGIN
+
+   ;;For when the end minute is not 0
+   f = where(req_hour EQ e_hour)
+   g = where(req_hour EQ e_hour+1)
+   end_lat = INTERPOL([req_lat[f],req_lat[g]], [0,60], e_min)
+   end_lon = INTERPOL([req_lon[f],req_lon[g]], [0,60], e_min)
+   end_alt = INTERPOL([req_alt[f],req_alt[g]], [0,60], e_min)
          
-         traj_data = where(track EQ traj)
-      
-         ;;extract track number 'traj' from the data set int_lat, int_lon and int_alt, and from the time arrays, remembering that here end_date = start_date and min = 0
-         req_lat = int_lat[traj_data]
-         req_lon = int_lon[traj_data]
-         req_alt = int_alt[traj_data]
-         req_hour = hour[traj_data]
-      
-         ;;Now find where req_hour EQ the end time
-         f = where(req_hour EQ e_hour)
-         end_lat = req_lat[f]
-         end_lon = req_lon[f]
-         end_alt = req_alt[f]
+   ;;return the end position
+   end_position = {lat: end_lat, lon: end_lon, alt: end_alt}
 
-         ;;return the end position
-         end_position = {lat: end_lat, lon: end_lon, alt: end_alt}
-      
-      ENDIF
-
-   ENDIF
-
-ENDIF
-
+ENDELSE
 
 RETURN, end_position
+
 END
