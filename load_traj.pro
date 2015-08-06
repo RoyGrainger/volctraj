@@ -3,7 +3,7 @@
 
 PRO load_traj,filename,data
 
-openr, lun, '/'+volcano+'/'+filename, /get_lun 
+openr, lun, '$trajdir/'+filename, /get_lun 
 
 line = ''
 l=0
@@ -20,11 +20,14 @@ WHILE NOT EOF(lun) DO BEGIN
    IF STRCMP(line,'     1 PRESSURE',15) EQ 1 THEN BEGIN
 
       ;;If yes, read the rest of the file to variable "result". NOTE filename height extension is 5 characters, so must include 0 if 9999m or less
-      result = READ_ASCII('/'+volcano+'/'+filename, DATA_START = l) 
+      result = READ_ASCII('$trajdir/'+filename, DATA_START = l) 
 
    ENDIF
 
 ENDWHILE
+
+data = dblarr(13, 125)   ;;13 columns outputted by HYSPLIT
+                         ;;125 rows outputted by HYSPLIT for 1 day, tracks every 6 hours
 
 ;;Will be a structure of one field, so reasign to an array
 data[*,*] = result.field01
