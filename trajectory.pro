@@ -28,7 +28,7 @@ FOR a = 0, n_elements(traj_alt_grid)-2 DO BEGIN
 
       FOR n = 0,1 DO BEGIN
          ;; NOTE filename height extension is 5 characters, so must include 0 if 9999m or less
-         IF h[n] LT 10000 THEN filename = volcano+'_'+start_DATTIM.date+'_0'+strtrim(h[n],1)+'m.txt'
+         IF h[n] LT 10000 THEN filename = volcano+'/'+volcano+'_'+start_DATTIM.date+'_0'+strtrim(h[n],1)+'m.txt'$
          ELSE filename = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+strtrim(h[n],1)+'m.txt'
 
          load_traj, filename, data_read
