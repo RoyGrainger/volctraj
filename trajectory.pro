@@ -6,14 +6,13 @@
 ;;Inputs: volcano = volcano code, string
 ;;        traj_alt_grid = altitude grid of data set
 ;;        start_DATTIM = start date and time of the trajectory, structure {date(string, YYMMDD), time(string, HHMM)}
-;;        start_position = position of volcano, and altitude of initial injection, structure {lat (dbl), lon(dbl), alt(dbl array)}
+;;        start_position = position of volcano, and altitude of initial injection, structure {lat (dbl), lon(dbl), alt(dbl array)}git pull help
 ;;        end_DATTIM = date and time at which position of air parcel is needed, structure {date(string, YYMMDD), time(string, HHMM)}
 ;;Output: end_position = location of air parcel end_DATTIM later, structure {lat (array), lon (array), alt (array)}
 
 FUNCTION trajectory, volcano, traj_alt_grid, Start_DATTIM, Start_Position, End_DATTIM, End_Position
 
 ;;Reading in the trajectories data
-<<<<<<< HEAD
 
 q = intarr(4)   
 FOR n = 0,3 do q[n] = max(where(traj_alt_grid LT start_position.alt[n])) < (n_elements(traj_alt_grid)-2)
@@ -55,22 +54,6 @@ ENDIF ELSE BEGIN
    ENDFOR
 
 ENDELSE
-=======
-data = dblarr(2,13, 125) ;;2 = number of heights, always 2 as want to interpolate between 2 levels
-                         ;;13 columns outputted by HYSPLIT
-                         ;;125 rows outputted by HYSPLIT for 1 day, tracks every 6 hours
-						 
-						 
-  Q =max(where(Traj_Alt_Grid Lt start_position.alt)) < (N_elements(Traj_Alt_Grid) - 2)
-  filename1 = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+string(Traj_Alt_Grid(q),Format='(I5.5)')+'m.txt'					 
-  filename2 = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+string(Traj_Alt_Grid(q+1),Format='(I5.5)')+'m.txt'					 
-  load_traj, filename1, data_read1			 
-  load_traj, filename2, data_read2		
-  data[0,*,*] = data_read1  
-  data[1,*,*] = data_read2 
-  heights = [Traj_Alt_Grid(q),Traj_Alt_Grid(q+1)]
-
->>>>>>> ad017dc57b3fddff9fae09ba218dd3e32a244d88
 
 ;Print message if the requested start height is smaller than the lowest measured height, or higher than the highest
 IF max(start_position.alt) GT traj_alt_grid[n_elements(traj_alt_grid)-1] OR min(start_position.alt) LT traj_alt_grid[0] THEN print,'Requested initial height is outside the calculable range'
