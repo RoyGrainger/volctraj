@@ -26,10 +26,7 @@ WHILE NOT EOF(lun) DO BEGIN
 
 ENDWHILE
 
-data = dblarr(13, 125)   ;;13 columns outputted by HYSPLIT
-                         ;;125 rows outputted by HYSPLIT for 1 day, tracks every 6 hours
-
-;;Will be a structure of one field, so reasign to an array
-data[*,*] = result.field01
+data = result.field01
 free_lun, lun
+
 END
