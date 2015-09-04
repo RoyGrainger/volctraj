@@ -2,6 +2,7 @@
 ;; 5th August 2015 CJB start - extracts end position if the end time is the same day, and has an end time with 0 minutes past the hour
 ;; 6th August 2015 CJB - extended to include end times with non zero minutes, and next day end times
 ;; 7th August 2015 CJB - extended to accept a range of start alititudes 
+;; 2nd September 2015 CJB - added function int_quantity to speed up interpolation section
 
 ;;Inputs: volcano = volcano code, string
 ;;        traj_alt_grid = altitude grid of data set
@@ -14,8 +15,8 @@ FUNCTION trajectory, volcano, traj_alt_grid, Start_DATTIM, Start_Position, End_D
 
 ;;Reading in the trajectories data
 
-q = intarr(4)   
-FOR n = 0,3 do q[n] = max(where(traj_alt_grid LT start_position.alt[n])) < (n_elements(traj_alt_grid)-2)
+q = intarr(n_elements(start_position.alt))   
+FOR n = 0,n_elements(start_position.alt)-1 DO q[n] = max(where(traj_alt_grid LT start_position.alt[n])) < (n_elements(traj_alt_grid)-2)
 
 
 ;;If all of the starting altitudes fall between two model heights...
@@ -24,9 +25,12 @@ IF n_elements(UNIQ(q)) EQ 1 THEN BEGIN
    data = dblarr(2,13, 125) ;;2 = number of heights, always 2 as want to interpolate between 2 levels
                             ;;13 columns outputted by HYSPLIT
                             ;;125 rows outputted by HYSPLIT for 1 day, tracks every 6 hours
+
+   ;;All values of array q are the same so
+   q = q[0]
    
    filename1 = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+string(traj_alt_grid[q], Format='(I5.5)')+'m.txt'					 
-   filename2 = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+string(traj_alt_grid[q+1], Format='(I5.5)')+'m.txt'					 
+   filename2 = volcano+'/'+volcano+'_'+start_DATTIM.date+'_'+string(traj_alt_grid[q+1], Format='(I5.5)')+'m.txt'
    load_traj, filename1, data_read1			 
    load_traj, filename2, data_read2		
    data[0,*,*] = data_read1  
@@ -93,22 +97,10 @@ int_lat = fltarr(n_elements(lat[*,0]), n_elements(start_position.alt))
 int_lon = fltarr(n_elements(lat[*,0]), n_elements(start_position.alt))
 int_alt = fltarr(n_elements(lat[*,0]), n_elements(start_position.alt))
 
-tmp_lats = fltarr(n_elements(lat[*,0]),2)
-tmp_lons = fltarr(n_elements(lat[*,0]),2)
-tmp_alts = fltarr(n_elements(lat[*,0]),2)
+int_lat = INT_QUANTITY(lat, heights, traj_alt_grid, start_position.alt)
+int_lon = INT_QUANTITY(lon, heights, traj_alt_grid, start_position.alt)
+int_alt = INT_QUANTITY(alt, heights, traj_alt_grid, start_position.alt)
 
-FOR r = 0, n_elements(start_position.alt) - 1 DO BEGIN
-   int_heights = [heights[2*r], heights[(2*r)+1]]
-   tmp_lats[*,0] = lat[*,2*r]
-   tmp_lats[*,1] = lat[*,(2*r)+1]
-   FOR x = 0, n_elements(lat[*,0])-1 DO int_lat[x,r] = INTERPOL(tmp_lats[x,*], int_heights, start_position.alt[r])
-   tmp_lons[*,0] = lon[*,2*r]
-   tmp_lons[*,1] = lon[*,(2*r)+1]
-   FOR y = 0, n_elements(lon[*,0])-1 DO int_lon[y,r] = INTERPOL(tmp_lons[y,*], int_heights, start_position.alt[r])
-   tmp_alts[*,0] = alt[*,2*r]
-   tmp_alts[*,1] = alt[*,(2*r)+1]
-   FOR z = 0, n_elements(alt[*,0])-1 DO int_alt[z,r] = INTERPOL(tmp_alts[z,*], int_heights, start_position.alt[r])
-ENDFOR
 
 ;; now want to read the position at a future time
 
@@ -138,42 +130,11 @@ traj = track[start] + 1
         
 traj_data = where(track EQ traj)
 
-;;extract track number 'traj' from the data set int_lat, int_lon and int_alt, and from the time arrays, remembering that
-;; here end_date = start_date and min = 0
+;--> call end_position function
+end_lat = end_position_edit(int_lat, hour, {start: {hours: s_hour, minutes: s_min}, final: {hours: e_hour, minutes: e_min}}, traj_data)
+end_lon = end_position_edit(int_lon, hour, {start: {hours: s_hour, minutes: s_min}, final: {hours: e_hour, minutes: e_min}}, traj_data)
+end_alt = end_position_edit(int_alt, hour, {start: {hours: s_hour, minutes: s_min}, final: {hours: e_hour, minutes: e_min}}, traj_data)
 
-req_lat = int_lat[*,traj_data]
-req_lon = int_lon[*,traj_data]
-req_alt = int_alt[*,traj_data]
-req_hour = hour[traj_data]
-
-;;If the end time is a whole number of hours later
-IF s_min EQ 0 THEN BEGIN      
-
-   ;;Now find where req_hour EQ the end time
-   f = where(req_hour EQ e_hour)
-   end_lat = req_lat[*,f]
-   end_lon = req_lon[*,f]
-   end_alt = req_alt[*,f]
-
-   ;;return the end position
-   end_position = {lat: end_lat, lon: end_lon, alt: end_alt}
-      
-ENDIF ELSE BEGIN
-
-   ;;For when the end minute is not 0
-   f = where(req_hour EQ e_hour)
-   g = where(req_hour EQ e_hour+1)
-   FOR m = 0, n_elements(start_position.alt)-1 DO BEGIN
-      end_lat[m] = INTERPOL([req_lat[m,f],req_lat[m,g]], [0,60], e_min)
-      end_lon[m] = INTERPOL([req_lon[m,f],req_lon[m,g]], [0,60], e_min)
-      end_alt[m] = INTERPOL([req_alt[m,f],req_alt[m,g]], [0,60], e_min)
-   ENDFOR
-         
-   ;;return the end position
-   end_position = {lat: end_lat, lon: end_lon, alt: end_alt}
-
-ENDELSE
-
-RETURN, end_position
+RETURN, {lat: end_lat, lon: end_lon, alt: end_alt}
 
 END
